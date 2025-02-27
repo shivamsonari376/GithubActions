@@ -1,4 +1,3 @@
-
 name: CI/CD Pipeline for Flask App
 
 on:
@@ -21,20 +20,20 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v3
         with:
-          python-version: '3.9'
+          python-version: '3.11'  # Use Python 3.11 to avoid pytest issues
 
       - name: Install dependencies
         run: |
           python -m venv venv
           source venv/bin/activate
-          pip install --upgrade pytest
-          python -m pip install --upgrade pip
+          pip install --upgrade pip setuptools wheel
+          pip install --upgrade pytest  # Ensure latest pytest version
           pip install -r requirements.txt
 
       - name: Run Tests
         run: |
           source venv/bin/activate
-          pytest test_app.py
+          pytest test_app.py --disable-warnings  # Suppress warnings
 
   deploy-staging:
     needs: build
