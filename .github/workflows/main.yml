@@ -1,0 +1,72 @@
+
+name: CI/CD Pipeline for Flask App
+
+on:
+  push:
+    branches:
+      - main
+      - staging
+  pull_request:
+    branches:
+      - main
+      - staging
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+          pip install -r requirements.txt
+
+      - name: Run Tests
+        run: |
+          source venv/bin/activate
+          pytest test_app.py
+
+  deploy-staging:
+    needs: build
+    if: github.ref == 'refs/heads/staging'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Staging
+        run: echo "Deploying to staging..."
+
+  deploy-production:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up SSH and connect to EC2
+        run: |
+          echo "${{ secrets.EC2_SSH_KEY }}" > ec2_key.pem
+          chmod 600 ec2_key.pem
+          ssh -o StrictHostKeyChecking=no -i ec2_key.pem ec2-user@34.226.218.121 << 'EOF'
+            # Navigate to the project directory
+            cd ~/GithubActions || exit
+
+            # Pull the latest changes from GitHub
+            git pull origin main
+
+            # Activate the virtual environment
+            source venv/bin/activate
+
+            # Install any new dependencies
+            pip install -r requirements.txt
+
+            # Kill any existing Flask app running on port 5000
+            pkill -f "python app.py" || echo "No running app found."
+
+            # Start the Flask app in the background
+            nohup python app.py --host=0.0.0.0 --port=5000 > app.log 2>&1 &
+          EOF
